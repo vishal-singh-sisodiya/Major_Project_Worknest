@@ -1,22 +1,54 @@
-const Anthropic = require('@anthropic-ai/sdk');
+const mongoose = require('mongoose');
+const Groq = require('groq-sdk');
+const Task = require('../models/Task');
+const Project = require('../models/Project');
+const { isUserInWorkspace } = require('../utils/workspaceAccess');
+const { getProjectRoleFromDoc, filterTasksForUser } = require('../utils/projectAccess');
 
-function getClient() {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    throw new Error('ANTHROPIC_API_KEY not configured');
+const MODEL = 'llama-3.1-8b-instant';
+
+let groqClient;
+function getGroq() {
+  if (!process.env.GROQ_API_KEY) {
+    throw new Error('GROQ_API_KEY not configured');
   }
-  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  if (!groqClient) groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  return groqClient;
 }
 
-async function complete(system, userMessage) {
-  const client = getClient();
-  const msg = await client.messages.create({
-    model: 'claude-3-5-sonnet-20241022',
-    max_tokens: 2048,
-    system,
-    messages: [{ role: 'user', content: userMessage }],
+async function complete(system, userMessage, maxTokens = 2048) {
+  const completion = await getGroq().chat.completions.create({
+    model: MODEL,
+    max_tokens: maxTokens,
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user', content: userMessage },
+    ],
   });
-  const block = (msg.content || []).find((b) => b.type === 'text');
-  return block && block.text ? block.text : '';
+  const content = completion.choices[0]?.message?.content;
+  return typeof content === 'string' ? content : '';
+}
+
+async function projectRoleMapForUser(userId, projectIdList) {
+  const oids = projectIdList.filter((id) => mongoose.Types.ObjectId.isValid(id));
+  const projs = await Project.find({
+    _id: { $in: oids },
+    'members.user': userId,
+  }).lean();
+  const m = {};
+  for (const p of projs) {
+    m[p._id.toString()] = getProjectRoleFromDoc(userId, p);
+  }
+  return m;
+}
+
+function assigneeLine(task) {
+  const arr = task.assignedTo?.length ? task.assignedTo : task.assignees || [];
+  if (!arr.length) return 'unassigned';
+  const names = arr
+    .map((u) => (u && typeof u === 'object' && u.name ? u.name : ''))
+    .filter(Boolean);
+  return names.length ? names.join(', ') : 'unassigned';
 }
 
 async function summarize(req, res) {
@@ -87,12 +119,54 @@ async function prioritize(req, res) {
 
 async function chat(req, res) {
   try {
-    const { message, context } = req.body;
+    const { message, workspaceId } = req.body;
     if (!message) return res.status(400).json({ message: 'message required' });
-    const ctx = context ? `Context:\n${context}\n\n` : '';
-    const text = await complete('You are a concise assistant.', ctx + message);
+    if (!workspaceId || !mongoose.Types.ObjectId.isValid(String(workspaceId))) {
+      return res.status(400).json({ message: 'valid workspaceId required' });
+    }
+    if (!(await isUserInWorkspace(req.userId, workspaceId))) {
+      return res.status(403).json({ message: 'Not a member of this workspace' });
+    }
+
+    const memberProjects = await Project.find({
+      workspaceId,
+      'members.user': req.userId,
+    })
+      .select('_id')
+      .lean();
+    const idList = memberProjects.map((p) => p._id);
+    let tasks = [];
+    if (idList.length) {
+      const raw = await Task.find({ workspaceId, projectId: { $in: idList } })
+        .sort({ status: 1, order: 1 })
+        .populate({ path: 'projectId', select: 'name' })
+        .populate({ path: 'assignedTo', select: 'name' })
+        .populate({ path: 'assignees', select: 'name' })
+        .lean();
+      const idStrings = idList.map((id) => id.toString());
+      const pids = new Set(idStrings);
+      const roleMap = await projectRoleMapForUser(req.userId, idStrings);
+      tasks = filterTasksForUser(
+        req.userId,
+        raw,
+        (pid) => pids.has(pid),
+        roleMap
+      );
+    }
+
+    const taskLines = tasks.map(
+      (t) =>
+        `- ${t.title} | status: ${t.status} | project: ${t.projectId?.name || 'General'} | assignee: ${assigneeLine(t)}`
+    );
+    const systemPrompt = `You are WorkNest AI assistant. Current workspace tasks:
+${taskLines.length ? taskLines.join('\n') : '(no tasks visible to this user)'}
+
+Summarize tasks or projects when asked. List completed vs remaining tasks for project summaries. Be concise.`;
+
+    const text = await complete(systemPrompt, String(message).slice(0, 100000), 1024);
     res.json({ reply: text });
   } catch (e) {
+    console.error(e);
     res.status(500).json({ message: e.message || 'AI error' });
   }
 }

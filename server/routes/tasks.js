@@ -7,11 +7,43 @@ const { handleValidation } = require('../middleware/validate');
 const router = express.Router();
 router.use(verifyToken);
 
+router.get(
+  '/project/:projectId',
+  param('projectId').isMongoId(),
+  handleValidation,
+  task.listByProject
+);
+
+router.put(
+  '/:id/assign',
+  [param('id').isMongoId(), body('assignedTo').isArray()],
+  handleValidation,
+  task.setAssign
+);
+
+router.put(
+  '/:id/access',
+  [
+    param('id').isMongoId(),
+    body('visibleTo').optional().isArray(),
+    body('visibleTo.*').optional().isMongoId(),
+    body('visibilityMode').optional().isIn(['all', 'specific']),
+  ],
+  handleValidation,
+  task.setAccess
+);
+
 router.get('/:workspaceId', param('workspaceId').isMongoId(), handleValidation, task.listByWorkspace);
 
 router.post(
   '/',
-  [body('workspaceId').isMongoId(), body('title').trim().notEmpty()],
+  [
+    body('title').trim().notEmpty(),
+    /** Inbox task: omit projectId or send ""; server uses workspace "General". */
+    body('projectId').optional({ checkFalsy: true }).isMongoId(),
+    body('workspaceId').isMongoId(),
+    body('visibilityMode').optional().isIn(['all', 'specific']),
+  ],
   handleValidation,
   task.create
 );

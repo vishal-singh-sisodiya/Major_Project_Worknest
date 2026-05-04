@@ -15,6 +15,7 @@ const userSchema = new mongoose.Schema(
     pomodoroSettings: {
       workMinutes: { type: Number, default: 25 },
       breakMinutes: { type: Number, default: 5 },
+      longBreakMinutes: { type: Number, default: 15 },
     },
     theme: { type: String, enum: ['dark', 'light'], default: 'dark' },
   },

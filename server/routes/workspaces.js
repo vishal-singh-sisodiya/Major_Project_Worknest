@@ -10,6 +10,12 @@ router.use(verifyToken);
 router.get('/my', ws.myWorkspaces);
 router.post('/', [body('name').trim().notEmpty()], handleValidation, ws.create);
 router.post('/join', [body('inviteCode').trim().notEmpty()], handleValidation, ws.join);
+router.post(
+  '/:id/channels',
+  [param('id').isMongoId(), body('name').trim().notEmpty()],
+  handleValidation,
+  ws.addChatChannel
+);
 router.get('/:id/messages', param('id').isMongoId(), handleValidation, ws.listMessages);
 router.get('/:id', param('id').isMongoId(), handleValidation, ws.getById);
 router.put('/:id', param('id').isMongoId(), handleValidation, ws.updateWorkspace);

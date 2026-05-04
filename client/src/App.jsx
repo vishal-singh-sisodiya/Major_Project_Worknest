@@ -8,19 +8,19 @@ import Dashboard from './pages/Dashboard.jsx'
 import Tasks from './pages/Tasks.jsx'
 import Notes from './pages/Notes.jsx'
 import Calendar from './pages/Calendar.jsx'
-import Goals from './pages/Goals.jsx'
 import Team from './pages/Team.jsx'
 import Chat from './pages/Chat.jsx'
 import Reports from './pages/Reports.jsx'
 import Settings from './pages/Settings.jsx'
-import { useEffect, useState } from 'react'
+import ProjectDetail from './pages/ProjectDetail.jsx'
+import { useCallback, useEffect, useState } from 'react'
 import api from './utils/api.js'
 
 function Protected({ children }) {
   const { user, loading } = useAuth()
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0d0f14]">
+      <div className="flex min-h-screen items-center justify-center bg-[var(--wn-bg)]">
         <motion.div
           className="h-12 w-12 rounded-full border-2 border-[#6c63ff] border-t-transparent"
           animate={{ rotate: 360 }}
@@ -36,21 +36,49 @@ function Protected({ children }) {
 export default function App() {
   const { user } = useAuth()
   const [workspaceName, setWorkspaceName] = useState('')
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState(() => localStorage.getItem('workspaceId') || '')
 
-  useEffect(() => {
+  const activateWorkspaceInClient = useCallback((ws) => {
+    if (!ws?._id) return
+    localStorage.setItem('workspaceId', String(ws._id))
+    localStorage.removeItem('worknest_projectId')
+    setActiveWorkspaceId(String(ws._id))
+    const name = typeof ws.name === 'string' ? ws.name : ''
+    setWorkspaceName(name || 'Workspace')
+  }, [])
+
+  const hydrateWorkspaceFromApi = useCallback(() => {
     if (!user) return
+
+    const pickFirst = (list) => {
+      if (!list?.length) return
+      const first = list[0]
+      localStorage.setItem('workspaceId', String(first._id))
+      localStorage.removeItem('worknest_projectId')
+      setActiveWorkspaceId(String(first._id))
+      setWorkspaceName(first.name || 'Workspace')
+    }
+
     const wid = localStorage.getItem('workspaceId')
     if (wid) {
-      api.get(`/workspaces/${wid}`).then(({ data }) => setWorkspaceName(data.name)).catch(() => {})
+      api
+        .get(`/workspaces/${wid}`)
+        .then(({ data }) => {
+          setWorkspaceName(data?.name || 'Workspace')
+          setActiveWorkspaceId(String(wid))
+        })
+        .catch(() => {
+          localStorage.removeItem('workspaceId')
+          api.get('/workspaces/my').then(({ data }) => pickFirst(Array.isArray(data) ? data : []))
+        })
     } else {
-      api.get('/workspaces/my').then(({ data }) => {
-        if (data[0]) {
-          localStorage.setItem('workspaceId', data[0]._id)
-          setWorkspaceName(data[0].name)
-        }
-      })
+      api.get('/workspaces/my').then(({ data }) => pickFirst(Array.isArray(data) ? data : []))
     }
   }, [user])
+
+  useEffect(() => {
+    hydrateWorkspaceFromApi()
+  }, [hydrateWorkspaceFromApi])
 
   return (
     <Routes>
@@ -60,15 +88,19 @@ export default function App() {
         path="/"
         element={
           <Protected>
-            <Layout workspaceName={workspaceName} />
+            <Layout
+              workspaceName={workspaceName}
+              activeWorkspaceId={activeWorkspaceId}
+              onWorkspaceActivate={activateWorkspaceInClient}
+            />
           </Protected>
         }
       >
         <Route index element={<Dashboard />} />
         <Route path="tasks" element={<Tasks />} />
+        <Route path="projects/:id" element={<ProjectDetail />} />
         <Route path="notes" element={<Notes />} />
         <Route path="calendar" element={<Calendar />} />
-        <Route path="goals" element={<Goals />} />
         <Route path="team" element={<Team />} />
         <Route path="chat" element={<Chat />} />
         <Route path="reports" element={<Reports />} />

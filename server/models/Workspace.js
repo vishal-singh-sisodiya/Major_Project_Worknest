@@ -17,6 +17,14 @@ const workspaceSchema = new mongoose.Schema(
       },
     ],
     inviteCode: { type: String, unique: true, sparse: true },
+    projects: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Project' }],
+    /** Slack-like channels — slugs joined as channel_<workspaceId>_<slug> */
+    chatChannels: [
+      {
+        slug: { type: String, required: true, trim: true, lowercase: true },
+        name: { type: String, required: true, trim: true },
+      },
+    ],
   },
   { timestamps: true }
 );

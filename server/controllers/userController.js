@@ -36,6 +36,9 @@ async function updateProfile(req, res) {
       if (pomodoroSettings.breakMinutes != null) {
         user.pomodoroSettings.breakMinutes = Number(pomodoroSettings.breakMinutes);
       }
+      if (pomodoroSettings.longBreakMinutes != null) {
+        user.pomodoroSettings.longBreakMinutes = Number(pomodoroSettings.longBreakMinutes);
+      }
     }
     if (theme && ['dark', 'light'].includes(theme)) user.theme = theme;
 

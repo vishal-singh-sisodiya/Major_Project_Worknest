@@ -28,7 +28,7 @@ export function SocketProvider({ children }) {
       s.disconnect()
       setSocket(null)
     }
-  }, [token])
+  }, [token, socketURL])
 
   const joinWorkspace = useCallback(
     (workspaceId) => {
@@ -41,6 +41,11 @@ export function SocketProvider({ children }) {
     },
     [socket, user]
   )
+
+  useEffect(() => {
+    if (!socket || !user?._id) return
+    socket.emit('join-user', { userId: user._id })
+  }, [socket, user?._id])
 
   useEffect(() => {
     if (!socket) return

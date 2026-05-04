@@ -3,27 +3,30 @@ const User = require('../models/User');
 const Task = require('../models/Task');
 const Note = require('../models/Note');
 const Message = require('../models/Message');
-
-async function getUserWorkspaceRole(userId, workspaceId) {
-  const user = await User.findById(userId).lean();
-  const entry = (user.workspaces || []).find(
-    (w) => w.workspaceId && w.workspaceId.toString() === workspaceId.toString()
-  );
-  return entry ? entry.role : null;
-}
+const Project = require('../models/Project');
+const { getUserWorkspaceRole } = require('../utils/workspaceAccess');
 
 async function myWorkspaces(req, res) {
   try {
-    const user = await User.findById(req.userId).lean();
-    const ids = (user.workspaces || []).map((w) => w.workspaceId);
+    const uid = req.userId;
+    const user = await User.findById(uid).lean();
+    const idSet = new Set(
+      (user.workspaces || []).map((w) => w.workspaceId && w.workspaceId.toString()).filter(Boolean)
+    );
+    const alsoMember = await Workspace.find({ 'members.user': uid }).select('_id').lean();
+    alsoMember.forEach((w) => idSet.add(w._id.toString()));
+
+    const ids = [...idSet];
     const workspaces = await Workspace.find({ _id: { $in: ids } })
       .populate('owner', 'name avatar')
       .lean();
     const withRole = workspaces.map((ws) => {
-      const entry = user.workspaces.find(
-        (w) => w.workspaceId.toString() === ws._id.toString()
+      const entry = (user.workspaces || []).find(
+        (w) => w.workspaceId && w.workspaceId.toString() === ws._id.toString()
       );
-      return { ...ws, myRole: entry && entry.role };
+      if (entry && entry.role) return { ...ws, myRole: entry.role };
+      const mem = (ws.members || []).find((m) => m.user && m.user.toString() === uid.toString());
+      return { ...ws, myRole: mem ? mem.role : 'member' };
     });
     res.json(withRole);
   } catch (e) {
@@ -39,9 +42,25 @@ async function create(req, res) {
       description: description || '',
       owner: req.userId,
       members: [{ user: req.userId, role: 'admin' }],
+      chatChannels: [
+        { slug: 'general', name: 'general' },
+        { slug: 'announcements', name: 'announcements' },
+      ],
     });
     await User.findByIdAndUpdate(req.userId, {
       $push: { workspaces: { workspaceId: workspace._id, role: 'admin' } },
+    });
+    const general = await Project.create({
+      name: 'General',
+      description: 'Starter project',
+      workspaceId: workspace._id,
+      members: [{ user: req.userId, role: 'manager' }],
+      createdBy: req.userId,
+      icon: '',
+      status: 'active',
+    });
+    await Workspace.findByIdAndUpdate(workspace._id, {
+      $addToSet: { projects: general._id },
     });
     const populated = await Workspace.findById(workspace._id)
       .populate('owner', 'name avatar')
@@ -73,6 +92,21 @@ async function join(req, res) {
     await User.findByIdAndUpdate(req.userId, {
       $push: { workspaces: { workspaceId: workspace._id, role: 'member' } },
     });
+    const general = await Project.findOne({
+      workspaceId: workspace._id,
+      name: 'General',
+    });
+    if (general) {
+      const uidStr = req.userId.toString();
+      const already = (general.members || []).some(
+        (m) => m.user && m.user.toString() === uidStr
+      );
+      if (!already) {
+        await Project.findByIdAndUpdate(general._id, {
+          $push: { members: { user: req.userId, role: 'member' } },
+        });
+      }
+    }
     const populated = await Workspace.findById(workspace._id)
       .populate('members.user', 'name avatar email')
       .lean();
@@ -157,12 +191,47 @@ async function removeMember(req, res) {
   }
 }
 
+function slugifyChannelName(name) {
+  const s = String(name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return s.slice(0, 40) || 'channel';
+}
+
+async function addChatChannel(req, res) {
+  try {
+    const role = await getUserWorkspaceRole(req.userId, req.params.id);
+    if (role !== 'admin') return res.status(403).json({ message: 'Admin only' });
+    const { name } = req.body;
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({ message: 'Channel name required' });
+    }
+    const slug = slugifyChannelName(name);
+    const ws = await Workspace.findById(req.params.id);
+    if (!ws) return res.status(404).json({ message: 'Workspace not found' });
+    const exists = (ws.chatChannels || []).some((c) => c.slug === slug);
+    if (exists) return res.status(400).json({ message: 'Channel already exists' });
+    ws.chatChannels = ws.chatChannels || [];
+    ws.chatChannels.push({ slug, name: String(name).trim() });
+    await ws.save();
+    const populated = await Workspace.findById(ws._id)
+      .populate('owner', 'name avatar email')
+      .populate('members.user', 'name avatar email')
+      .lean();
+    res.status(201).json(populated);
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+}
+
 async function listMessages(req, res) {
   try {
     const role = await getUserWorkspaceRole(req.userId, req.params.id);
     if (!role) return res.status(403).json({ message: 'Not a member' });
     const messages = await Message.find({ workspaceId: req.params.id })
-      .populate('sender', 'name avatar')
+      .populate('sender', 'name avatar email')
       .sort({ createdAt: 1 })
       .limit(200)
       .lean();
@@ -195,12 +264,13 @@ async function deleteWorkspace(req, res) {
     if (ws.owner.toString() !== req.userId) {
       return res.status(403).json({ message: 'Owner only' });
     }
+    await Task.deleteMany({ workspaceId: req.params.id });
+    await Project.deleteMany({ workspaceId: req.params.id });
     await Workspace.findByIdAndDelete(req.params.id);
     await User.updateMany(
       { 'workspaces.workspaceId': req.params.id },
       { $pull: { workspaces: { workspaceId: req.params.id } } }
     );
-    await Task.deleteMany({ workspaceId: req.params.id });
     await Note.deleteMany({ workspaceId: req.params.id });
     await Message.deleteMany({ workspaceId: req.params.id });
     res.json({ success: true });
@@ -217,6 +287,7 @@ module.exports = {
   updateWorkspace,
   updateMemberRole,
   removeMember,
+  addChatChannel,
   listMessages,
   leaveWorkspace,
   deleteWorkspace,

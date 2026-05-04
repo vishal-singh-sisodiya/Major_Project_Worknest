@@ -3,13 +3,63 @@
 @theme {
   --font-display: "Syne", ui-sans-serif, system-ui, sans-serif;
   --font-body: "DM Sans", ui-sans-serif, system-ui, sans-serif;
-  --color-wn-bg: #0d0f14;
-  --color-wn-surface: #13161d;
-  --color-wn-surface2: #1a1e28;
   --color-wn-accent: #6c63ff;
-  --color-wn-text: #e8eaf0;
-  --color-wn-muted: #7a7f94;
   --ease-bounce: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* Tokens toggled via ThemeContext (`data-theme` on <html>). */
+:root {
+  color-scheme: dark;
+  --wn-bg: #0d0f1a;
+  --wn-sidebar: #13151f;
+  --wn-deep: #13151f;
+  --wn-panel: #1a1d2e;
+  --wn-input-shade: #0d0f14;
+  --wn-fg: #e8eaf0;
+  --wn-muted: #7a7f94;
+  --wn-muted-strong: #9aa0b4;
+  --wn-placeholder: #545a6f;
+  --wn-topbar: rgba(13, 15, 26, 0.88);
+  --wn-border: rgba(255, 255, 255, 0.08);
+  --wn-border-strong: rgba(255, 255, 255, 0.14);
+  --wn-ring-soft: rgba(255, 255, 255, 0.1);
+  --wn-hover: rgba(255, 255, 255, 0.04);
+  --wn-hover-strong: rgba(255, 255, 255, 0.06);
+  --wn-hover-tint: rgba(255, 255, 255, 0.03);
+  --wn-auth-panel: rgb(26 29 46 / 0.92);
+  --wn-card-inset-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --wn-avatar-ring: #13151f;
+  --wn-card-shadow: 0 12px 40px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(108, 99, 255, 0.18);
+  --wn-deep-a40: color-mix(in srgb, var(--wn-deep) 40%, transparent);
+  --wn-deep-a60: color-mix(in srgb, var(--wn-deep) 60%, transparent);
+  --wn-deep-a70: color-mix(in srgb, var(--wn-deep) 70%, transparent);
+  --wn-deep-a80: color-mix(in srgb, var(--wn-deep) 80%, transparent);
+  --wn-deep-a90: color-mix(in srgb, var(--wn-deep) 90%, transparent);
+  --wn-bg-a90: color-mix(in srgb, var(--wn-bg) 90%, transparent);
+}
+
+html[data-theme="light"] {
+  color-scheme: light;
+  --wn-bg: #e9ecf6;
+  --wn-sidebar: #ffffff;
+  --wn-deep: #f1f3fb;
+  --wn-panel: #ffffff;
+  --wn-input-shade: #f4f6fd;
+  --wn-fg: #11121a;
+  --wn-muted: #5d6477;
+  --wn-muted-strong: #697080;
+  --wn-placeholder: #868b9a;
+  --wn-topbar: rgba(255, 255, 255, 0.92);
+  --wn-border: rgba(17, 24, 39, 0.1);
+  --wn-border-strong: rgba(17, 24, 39, 0.16);
+  --wn-ring-soft: rgba(17, 24, 39, 0.14);
+  --wn-hover: rgba(0, 0, 0, 0.04);
+  --wn-hover-strong: rgba(0, 0, 0, 0.06);
+  --wn-hover-tint: rgba(0, 0, 0, 0.03);
+  --wn-auth-panel: rgb(255 255 255 / 0.94);
+  --wn-card-inset-highlight: inset 0 1px 0 rgba(0, 0, 0, 0.04);
+  --wn-avatar-ring: #ffffff;
+  --wn-card-shadow: 0 12px 40px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(108, 99, 255, 0.12);
 }
 
 html,
@@ -20,10 +70,11 @@ body,
 
 body {
   margin: 0;
-  background-color: var(--color-wn-bg);
-  color: var(--color-wn-text);
+  background-color: var(--wn-bg);
+  color: var(--wn-fg);
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.22s ease, color 0.22s ease;
 }
 
 .font-display {
@@ -68,7 +119,7 @@ textarea {
 
 /* Mesh gradient background (login/register) */
 .mesh-bg {
-  background: #0d0f14;
+  background: var(--wn-bg);
   position: relative;
   overflow: hidden;
 }
@@ -87,7 +138,7 @@ textarea {
   content: "";
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 50% 50%, transparent 0%, #0d0f14 70%);
+  background: radial-gradient(circle at 50% 50%, transparent 0%, var(--wn-bg) 70%);
   pointer-events: none;
 }
 @keyframes mesh-shift {
@@ -204,7 +255,7 @@ textarea {
 }
 .gradient-border-inner {
   border-radius: calc(1rem - 1px);
-  background: rgba(13, 15, 20, 0.92);
+  background: color-mix(in srgb, var(--wn-panel) 94%, transparent);
   backdrop-filter: blur(20px);
 }
 
@@ -237,7 +288,12 @@ textarea {
 }
 .skeleton {
   animation: skeleton-pulse 1.2s ease-in-out infinite;
-  background: linear-gradient(90deg, #1a1e28 25%, #252a36 50%, #1a1e28 75%);
+  background: linear-gradient(
+    90deg,
+    var(--wn-deep) 25%,
+    color-mix(in srgb, var(--wn-fg) 8%, var(--wn-deep)) 50%,
+    var(--wn-deep) 75%
+  );
   background-size: 200% 100%;
 }
 
@@ -245,4 +301,89 @@ textarea {
 .nav-active-gradient {
   background: linear-gradient(90deg, rgba(108, 99, 255, 0.25), rgba(108, 99, 255, 0.05));
   border: 1px solid rgba(108, 99, 255, 0.3);
+}
+
+/* WorkNest surface card (respects theme) */
+.wn-card {
+  background: var(--wn-panel);
+  border: 1px solid var(--wn-border);
+  border-radius: 0.75rem;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--wn-fg);
+  transition:
+    transform 0.2s var(--ease-bounce),
+    box-shadow 0.22s ease,
+    background-color 0.22s ease,
+    border-color 0.22s ease;
+}
+.wn-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--wn-card-shadow);
+}
+
+.wn-btn {
+  transition: transform 0.18s var(--ease-bounce), box-shadow 0.2s ease;
+}
+.wn-btn:hover {
+  transform: scale(1.02);
+  box-shadow: 0 0 24px rgba(108, 99, 255, 0.35);
+}
+
+/* Floating purple blobs (login / hero) */
+.wn-orbs {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.wn-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(56px);
+  opacity: 0.55;
+  animation: wn-orb-float 14s ease-in-out infinite;
+}
+@keyframes wn-orb-float {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(4%, -6%) scale(1.05);
+  }
+  66% {
+    transform: translate(-5%, 4%) scale(0.96);
+  }
+}
+
+/* FullCalendar (scoped wrapper; tokens follow theme) */
+.wn-cal-wrap .fc {
+  --fc-border-color: var(--wn-border);
+  --fc-neutral-bg-color: var(--wn-deep);
+  --fc-page-bg-color: var(--wn-panel);
+  --fc-list-event-hover-bg-color: rgba(108, 99, 255, 0.12);
+}
+.wn-cal-wrap .fc-toolbar-title {
+  font-family: var(--font-display);
+  color: var(--wn-fg) !important;
+  font-weight: 700 !important;
+}
+.wn-cal-wrap .fc-col-header-cell,
+.wn-cal-wrap .fc-daygrid-day-number {
+  color: var(--wn-fg) !important;
+}
+.wn-cal-wrap .fc-button {
+  background: var(--wn-panel) !important;
+  border-color: var(--wn-border-strong) !important;
+  color: var(--wn-fg) !important;
+}
+.wn-cal-wrap .fc-button-primary:not(:disabled):active,
+.wn-cal-wrap .fc-button-primary:not(:disabled).fc-button-active {
+  background: #6c63ff !important;
+  border-color: #6c63ff !important;
+}
+
+/* Masonry inside Notes */
+.break-inside-avoid {
+  break-inside: avoid;
 }

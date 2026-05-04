@@ -9,12 +9,20 @@ async function verifyToken(req, res, next) {
     }
     const token = header.slice(7);
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.userId).select('-password').lean();
+    const rawId = decoded.userId;
+    const userIdNorm =
+      rawId &&
+      typeof rawId === 'object' &&
+      rawId.toHexString &&
+      typeof rawId.toHexString === 'function'
+        ? rawId.toHexString()
+        : String(rawId);
+    const user = await User.findById(userIdNorm).select('-password').lean();
     if (!user) {
       return res.status(401).json({ message: 'User not found' });
     }
     req.user = user;
-    req.userId = decoded.userId;
+    req.userId = userIdNorm;
     next();
   } catch (e) {
     if (e.name === 'JsonWebTokenError' || e.name === 'TokenExpiredError') {

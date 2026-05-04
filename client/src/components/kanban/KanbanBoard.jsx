@@ -16,7 +16,14 @@ function addXP(amount) {
   window.dispatchEvent(new Event('storage'))
 }
 
-export function KanbanBoard({ workspaceId, tasks, setTasks }) {
+export function KanbanBoard({
+  workspaceId,
+  projectId,
+  tasks,
+  setTasks,
+  onAddTask,
+  readOnly = false,
+}) {
   const { socket } = useSocket()
 
   const byStatus = useMemo(() => {
@@ -33,6 +40,7 @@ export function KanbanBoard({ workspaceId, tasks, setTasks }) {
 
   const onDragEnd = useCallback(
     async (result) => {
+      if (readOnly) return
       const { destination, source, draggableId } = result
       if (!destination || !workspaceId) return
       if (destination.droppableId === source.droppableId && destination.index === source.index)
@@ -49,10 +57,10 @@ export function KanbanBoard({ workspaceId, tasks, setTasks }) {
           particleCount: 80,
           spread: 70,
           origin: { y: 0.6 },
-          colors: ['#6c63ff', '#a78bfa', '#34d399', '#fbbf24'],
+          colors: ['#6c63ff', '#8b5cf6', '#34d399', '#fbbf24'],
         })
         addXP(10)
-        toastSuccess('Task crushed — +10 XP 🎉')
+        toastSuccess('Task crushed — +10 XP')
       }
 
       const otherTasks = tasks.filter((t) => t._id !== draggableId)
@@ -76,6 +84,7 @@ export function KanbanBoard({ workspaceId, tasks, setTasks }) {
         })
         socket?.emit('task-move', {
           workspaceId,
+          projectId: moved.projectId || projectId,
           taskId: draggableId,
           status: newStatus,
           order: destination.index,
@@ -84,8 +93,14 @@ export function KanbanBoard({ workspaceId, tasks, setTasks }) {
         setTasks(tasks)
       }
     },
-    [workspaceId, tasks, byStatus, setTasks, socket]
+    [readOnly, workspaceId, projectId, tasks, byStatus, setTasks, socket]
   )
+
+  const headerAccent = {
+    todo: 'from-[#6c63ff]/35 to-transparent border-[#6c63ff]/35',
+    inprogress: 'from-blue-500/25 to-transparent border-blue-400/35',
+    done: 'from-emerald-500/28 to-transparent border-emerald-400/35',
+  }
 
   return (
     <DragDropContext onDragEnd={onDragEnd}>
@@ -96,7 +111,14 @@ export function KanbanBoard({ workspaceId, tasks, setTasks }) {
         transition={{ duration: 0.4 }}
       >
         {STATUSES.map((status) => (
-          <KanbanColumn key={status} status={status} tasks={byStatus[status] || []} />
+          <KanbanColumn
+            key={status}
+            status={status}
+            tasks={byStatus[status] || []}
+            headerAccentClass={headerAccent[status]}
+            readOnly={readOnly}
+            onAddTask={readOnly ? undefined : onAddTask ? () => onAddTask(status) : undefined}
+          />
         ))}
       </motion.div>
     </DragDropContext>

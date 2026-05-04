@@ -1,0 +1,17 @@
+# Optional Render Blueprint: creates the API Web Service only.
+# Create a MongoDB Atlas cluster separately, then set env vars on Render Dashboard.
+#
+# Deploy: Dashboard → Blueprints → New Blueprint Instance → connect this repo.
+
+services:
+  - type: web
+    name: worknest-api
+    runtime: node
+    rootDir: server
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"

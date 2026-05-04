@@ -1,17 +1,10 @@
 const Note = require('../models/Note');
-const User = require('../models/User');
-
-async function userInWorkspace(userId, workspaceId) {
-  const user = await User.findById(userId).lean();
-  return (user.workspaces || []).some(
-    (w) => w.workspaceId && w.workspaceId.toString() === workspaceId.toString()
-  );
-}
+const { isUserInWorkspace } = require('../utils/workspaceAccess');
 
 async function listByWorkspace(req, res) {
   try {
     const { workspaceId } = req.params;
-    if (!(await userInWorkspace(req.userId, workspaceId))) {
+    if (!(await isUserInWorkspace(req.userId, workspaceId))) {
       return res.status(403).json({ message: 'Not a member' });
     }
     const notes = await Note.find({ workspaceId })
@@ -27,7 +20,7 @@ async function listByWorkspace(req, res) {
 async function create(req, res) {
   try {
     const { workspaceId } = req.body;
-    if (!workspaceId || !(await userInWorkspace(req.userId, workspaceId))) {
+    if (!workspaceId || !(await isUserInWorkspace(req.userId, workspaceId))) {
       return res.status(403).json({ message: 'Not a member' });
     }
     const note = await Note.create({
@@ -47,7 +40,7 @@ async function update(req, res) {
   try {
     const note = await Note.findById(req.params.id).lean();
     if (!note) return res.status(404).json({ message: 'Note not found' });
-    if (!(await userInWorkspace(req.userId, note.workspaceId))) {
+    if (!(await isUserInWorkspace(req.userId, note.workspaceId))) {
       return res.status(403).json({ message: 'Not a member' });
     }
     const allowed = ['title', 'content', 'emoji', 'color', 'tags'];
@@ -69,7 +62,7 @@ async function remove(req, res) {
   try {
     const note = await Note.findById(req.params.id).lean();
     if (!note) return res.status(404).json({ message: 'Note not found' });
-    if (!(await userInWorkspace(req.userId, note.workspaceId))) {
+    if (!(await isUserInWorkspace(req.userId, note.workspaceId))) {
       return res.status(403).json({ message: 'Not a member' });
     }
     await Note.findByIdAndDelete(req.params.id);

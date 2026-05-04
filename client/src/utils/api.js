@@ -1,10 +1,16 @@
 import axios from 'axios'
 import { toastError } from './toast.js'
 
-const baseURL = import.meta.env.VITE_API_URL || ''
+// Same-origin proxy uses '/api'. If VITE_API_URL already ends with '/api', don't double-append.
+function apiBaseURL() {
+  const raw = (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '')
+  if (!raw) return '/api'
+  const noDuplicate = raw.replace(/\/api$/i, '')
+  return `${noDuplicate}/api`
+}
 
 export const api = axios.create({
-  baseURL: baseURL ? `${baseURL.replace(/\/$/, '')}/api` : '/api',
+  baseURL: apiBaseURL(),
   headers: { 'Content-Type': 'application/json' },
 })
 
